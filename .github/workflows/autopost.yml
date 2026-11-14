@@ -25,7 +25,7 @@ jobs:
       - name: Publish due posts
         env:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
-          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID || '17841418901946633' }}
           ONLY_POST: ${{ github.event.inputs.only_post }}
         run: python3 post.py
       - name: Save what was posted

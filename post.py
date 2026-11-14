@@ -1,7 +1,8 @@
 """Publishes posts from posts.json to Instagram when they are due.
 
-Runs on a schedule in GitHub Actions. Needs two repo secrets:
-IG_TOKEN (long-lived Instagram user token) and IG_USER_ID.
+Runs on a schedule in GitHub Actions. Needs one repo secret:
+IG_TOKEN (long-lived Instagram user token). IG_USER_ID is optional;
+when it is missing the account id is looked up from the token.
 Media is served from this public repo via raw.githubusercontent.com.
 """
 import json, os, sys, time, urllib.error, urllib.parse, urllib.request
@@ -59,6 +60,7 @@ def publish(p):
 
 
 def main():
+    global USER
     posts = json.load(open("posts.json"))
     done = json.load(open("posted.json")) if os.path.exists("posted.json") else {}
     now = datetime.now(timezone.utc)
@@ -77,9 +79,11 @@ def main():
             done[p["no"]] = {"skipped": now.isoformat()}
             json.dump(done, open("posted.json", "w"), indent=2)
             continue
-        if not (TOKEN and USER):
-            print("IG_TOKEN / IG_USER_ID secrets not set yet, nothing posted.")
+        if not TOKEN:
+            print("IG_TOKEN secret not set yet, nothing posted.")
             break
+        if not USER:
+            USER = call("GET", "me", fields="user_id,username")["user_id"]
         print(f"no. {p['no']}: publishing {p['type']}...")
         try:
             media_id = publish(p)

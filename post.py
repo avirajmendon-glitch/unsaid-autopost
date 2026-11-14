@@ -8,8 +8,10 @@ Media is served from this public repo via raw.githubusercontent.com.
 import json, os, sys, time, urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone, timedelta
 
-API = "https://graph.instagram.com/v23.0"
-TOKEN = os.environ.get("IG_TOKEN")
+TOKEN = (os.environ.get("IG_TOKEN") or "").strip()
+# Instagram-login tokens (IG...) use graph.instagram.com; Facebook-login tokens (EAA...) use graph.facebook.com
+FB_TOKEN = TOKEN.startswith("EAA")
+API = "https://graph.facebook.com/v23.0" if FB_TOKEN else "https://graph.instagram.com/v23.0"
 USER = os.environ.get("IG_USER_ID")
 RAW = f"https://raw.githubusercontent.com/{os.environ['GITHUB_REPOSITORY']}/{os.environ.get('GITHUB_REF_NAME', 'main')}/"
 LATE_LIMIT = timedelta(hours=6)  # skip a post if the job missed it by more than this
@@ -59,6 +61,18 @@ def publish(p):
     return call("POST", f"{USER}/media_publish", creation_id=c)["id"]
 
 
+def find_user_id():
+    if not FB_TOKEN:
+        return call("GET", "me", fields="user_id,username")["user_id"]
+    pages = call("GET", "me/accounts", fields="instagram_business_account{id,username}")["data"]
+    for page in pages:
+        ig = page.get("instagram_business_account")
+        if ig:
+            print(f"using Instagram account @{ig.get('username')}")
+            return ig["id"]
+    raise RuntimeError("Facebook token has no Page with a linked Instagram account")
+
+
 def main():
     global USER
     posts = json.load(open("posts.json"))
@@ -83,7 +97,7 @@ def main():
             print("IG_TOKEN secret not set yet, nothing posted.")
             break
         if not USER:
-            USER = call("GET", "me", fields="user_id,username")["user_id"]
+            USER = find_user_id()
         print(f"no. {p['no']}: publishing {p['type']}...")
         try:
             media_id = publish(p)
